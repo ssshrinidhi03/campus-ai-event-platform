@@ -1,0 +1,103 @@
+/* Event Card ─────────────────────────────────────────────────────── */
+.event-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  cursor: default;
+}
+
+.event-card-stripe {
+  height: 3px;
+  width: 100%;
+}
+
+.stripe-hackathon   { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+.stripe-workshop    { background: linear-gradient(90deg, #4a6cf7, #7b97f9); }
+.stripe-competition { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.stripe-seminar     { background: linear-gradient(90deg, #06b6d4, #67e8f9); }
+.stripe-conference  { background: linear-gradient(90deg, #10b981, #6ee7b7); }
+.stripe-cultural    { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+
+.event-card-body {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1;
+}
+
+.event-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.urgency-badge {
+  font-size: 0.7rem;
+}
+
+.event-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--clr-text-primary);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.event-organizer {
+  font-size: 0.8rem;
+  color: var(--clr-text-muted);
+  font-weight: 500;
+}
+
+.event-desc {
+  font-size: 0.85rem;
+  color: var(--clr-text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+.event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.8rem;
+  color: var(--clr-text-muted);
+  font-weight: 500;
+}
+
+.meta-item svg {
+  flex-shrink: 0;
+  color: var(--clr-brand-400);
+}
+
+.event-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.event-card-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--clr-border);
+  margin-top: auto;
+}
