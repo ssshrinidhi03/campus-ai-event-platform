@@ -12,9 +12,6 @@ const NAV_LINKS = {
     { to: '/organizer', label: 'Dashboard' },
     { to: '/organizer/events', label: 'My Events' },
   ],
-  ADMIN: [
-    { to: '/admin', label: 'Dashboard' },
-  ],
 };
 
 export default function Navbar() {
@@ -73,7 +70,7 @@ export default function Navbar() {
                 <div className="dropdown-menu" onMouseLeave={() => setMenuOpen(false)}>
                   <div className="dropdown-header">
                     <span className="text-sm text-secondary">{user.email}</span>
-                    <span className={`badge badge-${user.role === 'ADMIN' ? 'rose' : user.role === 'ORGANIZER' ? 'cyan' : 'brand'} text-xs`}>
+                    <span className={`badge badge-${user.role === 'ORGANIZER' ? 'cyan' : 'brand'} text-xs`}>
                       {user.role}
                     </span>
                   </div>

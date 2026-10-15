@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel, ConfigDict
 from app.models.enums import UserRole
 
@@ -7,6 +8,9 @@ class UserBase(BaseModel):
     name: str
     email: str
     role: UserRole = UserRole.STUDENT
+    roll_number: Optional[str] = None
+    is_verified: bool = False
+    is_identity_verified: bool = False
 
 
 class UserCreate(UserBase):

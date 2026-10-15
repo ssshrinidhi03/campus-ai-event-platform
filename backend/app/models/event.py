@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.models.registration import EventRegistration
     from app.models.document import Document
     from app.models.source import EventSource
+    from app.models.saved_event import SavedEvent
 
 
 def get_utc_now() -> datetime:
@@ -28,6 +29,7 @@ class Event(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    organization: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     organizer_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -41,6 +43,13 @@ class Event(Base):
     eligibility: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     registration_deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     registration_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    tags: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    capacity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    poster_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    contact_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    online_meeting_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    speaker_info: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    additional_instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[EventStatus] = mapped_column(
         SQLEnum(EventStatus, native_enum=False),
         nullable=False,
@@ -78,6 +87,11 @@ class Event(Base):
     )
     sources: Mapped[List["EventSource"]] = relationship(
         "EventSource",
+        back_populates="event",
+        cascade="all, delete-orphan",
+    )
+    saved_by_users: Mapped[List["SavedEvent"]] = relationship(
+        "SavedEvent",
         back_populates="event",
         cascade="all, delete-orphan",
     )

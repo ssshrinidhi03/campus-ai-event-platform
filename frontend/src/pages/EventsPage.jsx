@@ -1,26 +1,59 @@
-import { useState, useMemo } from 'react';
-import { MOCK_EVENTS } from '../services/api';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { eventsApi } from '../services/api';
 import EventCard from '../components/EventCard';
 import './EventsPage.css';
 
-const ALL_CATEGORIES = ['All', ...new Set(MOCK_EVENTS.map(e => e.category))];
-
 export default function EventsPage() {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [searchDebounced, setSearchDebounced] = useState('');
 
-  const filtered = useMemo(() => {
-    return MOCK_EVENTS.filter(event => {
-      const matchesCategory = activeCategory === 'All' || event.category === activeCategory;
-      const q = search.toLowerCase();
-      const matchesSearch = !q ||
-        event.title.toLowerCase().includes(q) ||
-        event.description.toLowerCase().includes(q) ||
-        event.tags?.some(t => t.toLowerCase().includes(q)) ||
-        event.organizer_name?.toLowerCase().includes(q);
-      return matchesCategory && matchesSearch;
-    });
-  }, [search, activeCategory]);
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchDebounced(search.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Fetch events when search or category changes
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = {};
+        if (searchDebounced) params.q = searchDebounced;
+        if (activeCategory && activeCategory !== 'All') params.category = activeCategory;
+        
+        const data = await eventsApi.list(params);
+        setEvents(data.items || data);
+      } catch (e) {
+        setError(e.message || 'Unable to load events');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEvents();
+  }, [searchDebounced, activeCategory]);
+
+  const ALL_CATEGORIES = useMemo(() => ['All', ...new Set(events.map(e => e.category).filter(Boolean))], [events]);
+
+  const handleCategoryChange = useCallback((cat) => {
+    setActiveCategory(cat);
+  }, []);
+
+  const handleSearchChange = useCallback((e) => {
+    setSearch(e.target.value);
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setSearch('');
+    setActiveCategory('All');
+  }, []);
 
   return (
     <div className="page-layout">
@@ -30,7 +63,7 @@ export default function EventsPage() {
             <div>
               <h1 className="font-display text-3xl font-bold">Discover Events</h1>
               <p className="text-secondary text-sm" style={{ marginTop: '0.25rem' }}>
-                {filtered.length} events found
+                {events.length} events found
               </p>
             </div>
           </div>
@@ -46,7 +79,7 @@ export default function EventsPage() {
               className="input search-input"
               placeholder="Search by name, tag, or organiser..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={handleSearchChange}
             />
             {search && (
               <button className="clear-btn" onClick={() => setSearch('')} aria-label="Clear search">✕</button>
@@ -60,7 +93,7 @@ export default function EventsPage() {
                 key={cat}
                 id={`filter-${cat.toLowerCase()}`}
                 className={`tag ${activeCategory === cat ? 'active' : ''}`}
-                onClick={() => setActiveCategory(cat)}
+                onClick={() => handleCategoryChange(cat)}
               >
                 {cat}
               </button>
@@ -70,18 +103,22 @@ export default function EventsPage() {
       </div>
 
       <div className="container page-content">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 'var(--space-16) 0' }}>
+            <p className="text-secondary">Loading events...</p>
+          </div>
+        ) : events.length === 0 ? (
           <div className="empty-state">
             <span className="empty-icon">🔍</span>
             <h3 className="font-display text-xl font-semibold">No events found</h3>
             <p className="text-secondary text-sm">Try adjusting your search or filter.</p>
-            <button className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setActiveCategory('All'); }}>
+            <button className="btn btn-ghost btn-sm" onClick={handleClearFilters}>
               Clear filters
             </button>
           </div>
         ) : (
           <div className="events-grid">
-            {filtered.map((event, i) => (
+            {events.map((event, i) => (
               <div key={event.id} style={{ animationDelay: `${i * 60}ms` }} className="animate-fade-in">
                 <EventCard event={event} />
               </div>

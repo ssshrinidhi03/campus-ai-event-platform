@@ -1,5 +1,8 @@
 import { CATEGORY_COLORS } from '../services/api';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { eventsApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import './EventCard.css';
 
 function formatDate(dateStr) {
@@ -16,11 +19,40 @@ function daysUntilDeadline(deadlineStr) {
   return days;
 }
 
-export default function EventCard({ event }) {
+export default function EventCard({ event, isSaved = false }) {
   const badgeClass = CATEGORY_COLORS[event.category] || 'badge-brand';
   const days = daysUntilDeadline(event.registration_deadline);
   const isUrgent = days !== null && days <= 3 && days >= 0;
   const isExpired = days !== null && days < 0;
+  const { token, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [saved, setSaved] = useState(isSaved);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (!token) return;
+    setSaving(true);
+    try {
+      if (saved) {
+        await eventsApi.unsaveEvent(event.id, token);
+        setSaved(false);
+      } else {
+        await eventsApi.saveEvent(event.id, token);
+        setSaved(true);
+      }
+    } catch (err) {
+      // Error handled silently or show toast in future
+      console.error('Save error:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <article className="event-card card animate-fade-in">
@@ -75,15 +107,30 @@ export default function EventCard({ event }) {
           <Link to={`/events/${event.id}`} className="btn btn-outline btn-sm">
             View details
           </Link>
-          {event.registration_link && !isExpired && (
-            <a
-              href={event.registration_link}
-              target="_blank"
-              rel="noopener noreferrer"
+          {!isExpired && (
+            <Link
+              to={`/events/${event.id}/register`}
               className="btn btn-primary btn-sm"
             >
-              Register →
-            </a>
+              Register
+            </Link>
+          )}
+          {isExpired && (
+            <button className="btn btn-ghost btn-sm" disabled style={{ opacity: 0.5 }}>
+              Registration closed
+            </button>
+          )}
+          {isAuthenticated && (
+            <button
+              type="button"
+              className={`btn btn-sm ${saved ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={handleSave}
+              disabled={saving}
+              style={{ padding: 'var(--space-1) var(--space-2)', minWidth: '36px' }}
+              title={saved ? 'Remove from saved' : 'Save for later'}
+            >
+              {saved ? '★' : '☆'}
+            </button>
           )}
         </div>
       </div>

@@ -1,12 +1,8 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { MOCK_EVENTS } from '../services/api';
+import { eventsApi } from '../services/api';
 import './OrganizerDashboard.css';
-
-const MOCK_MY_EVENTS = MOCK_EVENTS.slice(0, 3).map((e, i) => ({
-  ...e,
-  status: i === 0 ? 'APPROVED' : i === 1 ? 'PENDING_APPROVAL' : 'DRAFT',
-}));
 
 const STATUS_BADGE = {
   APPROVED:         'badge-emerald',
@@ -25,14 +21,74 @@ const STATUS_LABEL = {
 };
 
 export default function OrganizerDashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const navigate = useNavigate();
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const data = await eventsApi.listOrganizerEvents(token);
+        setEvents(data);
+      } catch (e) {
+        setError(e.message || 'Unable to load events');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEvents();
+  }, [token]);
 
   const stats = [
-    { label: 'Total events',     value: MOCK_MY_EVENTS.length,                                          color: 'var(--clr-brand-400)' },
-    { label: 'Approved',         value: MOCK_MY_EVENTS.filter(e => e.status === 'APPROVED').length,     color: 'var(--clr-accent-emerald)' },
-    { label: 'Pending review',   value: MOCK_MY_EVENTS.filter(e => e.status === 'PENDING_APPROVAL').length, color: 'var(--clr-accent-amber)' },
-    { label: 'Drafts',           value: MOCK_MY_EVENTS.filter(e => e.status === 'DRAFT').length,        color: 'var(--clr-text-muted)' },
+    { label: 'Total events',     value: events.length,                                           color: 'var(--clr-brand-400)' },
+    { label: 'Published',        value: events.filter(e => e.status === 'APPROVED').length,      color: 'var(--clr-accent-emerald)' },
+    { label: 'Drafts',           value: events.filter(e => e.status === 'DRAFT').length,         color: 'var(--clr-text-muted)' },
   ];
+
+  const handleDelete = async (eventId) => {
+    if (!window.confirm('Are you sure you want to delete this draft?')) return;
+    try {
+      await eventsApi.deleteEvent(eventId, token);
+      setEvents(events.filter(e => e.id !== eventId));
+    } catch (e) {
+      alert(e.message || 'Failed to delete event');
+    }
+  };
+
+  const handlePublish = async (eventId) => {
+    try {
+      await eventsApi.publishEvent(eventId, token);
+      setEvents(events.map(e => e.id === eventId ? { ...e, status: 'APPROVED' } : e));
+    } catch (e) {
+      alert(e.message || 'Failed to publish event');
+    }
+  };
+
+  const handleEdit = (eventId) => {
+    navigate(`/organizer/edit/${eventId}`);
+  };
+
+  if (loading) {
+    return (
+      <div className="page-layout">
+        <div className="container" style={{ textAlign: 'center', padding: 'var(--space-16) 0' }}>
+          <p className="text-secondary">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page-layout">
+        <div className="container" style={{ textAlign: 'center', padding: 'var(--space-16) 0' }}>
+          <p className="text-secondary">Error: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-layout">
@@ -71,18 +127,38 @@ export default function OrganizerDashboard() {
           </div>
 
           <div className="org-events-list">
-            {MOCK_MY_EVENTS.map(event => (
-              <div key={event.id} className="org-event-row card animate-fade-in">
-                <div className="org-event-info">
-                  <h3 className="text-sm font-semibold text-primary">{event.title}</h3>
-                  <p className="text-xs text-muted" style={{ marginTop: '2px' }}>{event.category} · {event.date}</p>
-                </div>
-                <span className={`badge ${STATUS_BADGE[event.status]}`}>
-                  {STATUS_LABEL[event.status]}
-                </span>
-                <Link to={`/events/${event.id}`} className="btn btn-ghost btn-sm">View</Link>
+            {events.length === 0 ? (
+              <div className="empty-state" style={{ textAlign: 'center', padding: 'var(--space-8)' }}>
+                <span className="empty-icon" style={{ fontSize: '3rem' }}>📅</span>
+                <h3 className="font-display text-xl font-semibold" style={{ marginTop: 'var(--space-4)' }}>No events yet</h3>
+                <p className="text-secondary text-sm" style={{ marginTop: 'var(--space-2)' }}>Create your first event to get started.</p>
+                <Link to="/organizer/create" className="btn btn-primary" style={{ marginTop: 'var(--space-4)', display: 'inline-block' }}>
+                  + Create event
+                </Link>
               </div>
-            ))}
+            ) : (
+              events.map(event => (
+                <div key={event.id} className="org-event-row card animate-fade-in">
+                  <div className="org-event-info">
+                    <h3 className="text-sm font-semibold text-primary">{event.title}</h3>
+                    <p className="text-xs text-muted" style={{ marginTop: '2px' }}>{event.category} · {event.date?.split('T')[0] || 'TBD'}</p>
+                  </div>
+                  <span className={`badge ${STATUS_BADGE[event.status] || 'badge-brand'}`}>
+                    {STATUS_LABEL[event.status] || event.status}
+                  </span>
+                  <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                    <Link to={`/organizer/events/${event.id}`} className="btn btn-ghost btn-sm">View</Link>
+                    {event.status === 'DRAFT' && (
+                      <>
+                        <button onClick={() => handleEdit(event.id)} className="btn btn-primary btn-sm">Edit</button>
+                        <button onClick={() => handlePublish(event.id)} className="btn btn-primary btn-sm">Publish Event</button>
+                        <button onClick={() => handleDelete(event.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--clr-accent-rose)' }}>Delete</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

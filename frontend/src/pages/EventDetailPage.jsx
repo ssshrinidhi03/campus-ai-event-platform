@@ -1,5 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MOCK_EVENTS, CATEGORY_COLORS } from '../services/api';
+import { useState, useEffect } from 'react';
+import { eventsApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import './EventDetailPage.css';
 
 function formatDate(d) {
@@ -17,24 +19,93 @@ function daysLeft(d) {
   return Math.ceil((new Date(d) - new Date()) / (1000 * 60 * 60 * 24));
 }
 
-export default function EventDetailPage() {
+export default function EventDetailPage({ isOrganizerView = false }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const event = MOCK_EVENTS.find(e => e.id === Number(id));
+  const { user, token, isAuthenticated } = useAuth();
+  const [event, setEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  if (!event) {
+  useEffect(() => {
+    async function loadEvent() {
+      try {
+        let data;
+        if (isOrganizerView && token) {
+          data = await eventsApi.getOrganizerEvent(id, token);
+        } else {
+          data = await eventsApi.get(id);
+        }
+        setEvent(data);
+      } catch (err) {
+        setError('Event not found');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadEvent();
+  }, [id, isOrganizerView, token]);
+
+  const handleSave = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (!token) return;
+    setSaving(true);
+    try {
+      if (saved) {
+        await eventsApi.unsaveEvent(id, token);
+        setSaved(false);
+      } else {
+        await eventsApi.saveEvent(id, token);
+        setSaved(true);
+      }
+    } catch (err) {
+      console.error('Save error:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="page-layout">
+        <div className="container page-content" style={{ textAlign: 'center', padding: 'var(--space-16) 0' }}>
+          <p className="text-secondary">Loading event...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !event) {
     return (
       <div className="page-layout">
         <div className="container page-content not-found">
           <span className="not-found-icon">🔍</span>
           <h2 className="font-display text-2xl font-bold">Event not found</h2>
           <p className="text-secondary">This event may have been removed or the link is incorrect.</p>
-          <Link to="/events" className="btn btn-primary">← Back to events</Link>
+          <Link to={isOrganizerView ? '/organizer' : '/events'} className="btn btn-primary">
+            ← Back to {isOrganizerView ? 'dashboard' : 'events'}
+          </Link>
         </div>
       </div>
     );
   }
 
+  const CATEGORY_COLORS = {
+    Hackathon:  'badge-violet',
+    Workshop:   'badge-brand',
+    Competition: 'badge-amber',
+    Seminar:    'badge-cyan',
+    Conference: 'badge-emerald',
+    Cultural:   'badge-rose',
+    Sports:     'badge-emerald',
+    Other:      'badge-brand',
+  };
+  
   const badgeClass = CATEGORY_COLORS[event.category] || 'badge-brand';
   const days = daysLeft(event.registration_deadline);
   const isExpired = days !== null && days < 0;
@@ -100,22 +171,33 @@ export default function EventDetailPage() {
                 <DetailRow icon="⏰" label="Deadline" value={formatDeadline(event.registration_deadline)} />
               </div>
 
-              {event.registration_link && !isExpired ? (
-                <a
-                  href={event.registration_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-primary w-full"
-                  id={`register-btn-${event.id}`}
-                  style={{ justifyContent: 'center', marginTop: 'var(--space-4)' }}
-                >
-                  Register for this event →
-                </a>
-              ) : (
-                <button className="btn btn-ghost w-full" disabled style={{ marginTop: 'var(--space-4)', opacity: 0.5 }}>
-                  Registration closed
-                </button>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: 'var(--space-4)' }}>
+                {!isExpired ? (
+                  <Link
+                    to={`/events/${event.id}/register`}
+                    className="btn btn-primary w-full"
+                    id={`register-btn-${event.id}`}
+                    style={{ justifyContent: 'center' }}
+                  >
+                    Register for this event →
+                  </Link>
+                ) : (
+                  <button className="btn btn-ghost w-full" disabled style={{ opacity: 0.5 }}>
+                    Registration closed
+                  </button>
+                )}
+                {isAuthenticated && !isOrganizerView && (
+                  <button
+                    type="button"
+                    className={`btn ${saved ? 'btn-primary' : 'btn-outline'} w-full`}
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{ justifyContent: 'center' }}
+                  >
+                    {saving ? 'Saving...' : saved ? '★ Saved' : '☆ Save for later'}
+                  </button>
+                )}
+              </div>
             </div>
           </aside>
         </div>

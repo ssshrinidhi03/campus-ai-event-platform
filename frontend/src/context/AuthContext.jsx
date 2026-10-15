@@ -13,9 +13,18 @@ export function AuthProvider({ children }) {
     }
   });
 
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem('caep_token');
+    } catch {
+      return null;
+    }
+  });
+
   const login = useCallback(async (email, password) => {
     const data = await authApi.login(email, password);
     setUser(data.user);
+    setToken(data.access_token);
     localStorage.setItem('caep_user', JSON.stringify(data.user));
     localStorage.setItem('caep_token', data.access_token);
     return data;
@@ -23,12 +32,13 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     setUser(null);
+    setToken(null);
     localStorage.removeItem('caep_user');
     localStorage.removeItem('caep_token');
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

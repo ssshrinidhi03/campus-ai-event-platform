@@ -13,13 +13,23 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 async function request(path, options = {}) {
   const url = `${BASE_URL}${path}`;
-  const response = await fetch(url, {
-    headers: {
+  let response;
+  try {
+    // Merge headers: default Content-Type + any custom headers from options
+    const headers = {
       'Content-Type': 'application/json',
       ...options.headers,
-    },
-    ...options,
-  });
+    };
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+      throw new Error('Unable to connect to the server. Please make sure the backend is running.');
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
@@ -36,51 +46,177 @@ export const healthApi = {
   check: () => request('/health'),
 };
 
-// ── Auth (PLANNED – Phase 3) ─────────────────────────────────────────────────
+// ── Auth (IMPLEMENTED – Phase 3) ─────────────────────────────────────────────────
 
 export const authApi = {
-  /** PLANNED: POST /api/v1/auth/login */
+  /** POST /api/v1/auth/login */
   login: async (email, password) => {
-    // Will call the real endpoint once Phase 3 is implemented.
-    // For now, return a mock token so the UI can be developed end-to-end.
-    await new Promise(r => setTimeout(r, 600)); // simulate network latency
-    if (email && password) {
-      return {
-        access_token: 'mock_token_' + btoa(email),
-        token_type: 'bearer',
-        user: {
-          id: 1,
-          name: email.split('@')[0].replace('.', ' '),
-          email,
-          role: email.includes('organizer') ? 'ORGANIZER' : email.includes('admin') ? 'ADMIN' : 'STUDENT',
-        },
-      };
-    }
-    throw new Error('Invalid credentials');
+    return request('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
   },
 
-  /** PLANNED: POST /api/v1/auth/logout */
+  /** POST /api/v1/auth/logout */
   logout: async () => {
-    await new Promise(r => setTimeout(r, 200));
-    return { detail: 'Logged out' };
+    return request('/api/v1/auth/logout', {
+      method: 'POST',
+    });
+  },
+
+  /** POST /api/v1/auth/register */
+  register: async (name, email, password, roll_number) => {
+    return request('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password, confirm_password: password, roll_number, account_type: "STUDENT" }),
+    });
   },
 };
 
 // ── Events (PLANNED – Phase 4) ───────────────────────────────────────────────
 
 export const eventsApi = {
-  /** PLANNED: GET /api/v1/events */
+  /** GET /api/v1/events */
   list: async (params = {}) => {
-    await new Promise(r => setTimeout(r, 400));
-    return { items: MOCK_EVENTS, total: MOCK_EVENTS.length };
+    // params can include query, filters in future
+    const query = new URLSearchParams(params).toString();
+    const path = `/api/v1/events${query ? `?${query}` : ''}`;
+    return request(path);
   },
 
-  /** PLANNED: GET /api/v1/events/:id */
+  /** GET /api/v1/organizer/events */
+  listOrganizerEvents: async (token) => {
+    return request('/api/v1/organizer/events', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+  },
+
+  /** GET /api/v1/events/:id */
   get: async (id) => {
-    await new Promise(r => setTimeout(r, 300));
-    const event = MOCK_EVENTS.find(e => e.id === Number(id));
-    if (!event) throw new Error('Event not found');
-    return event;
+    return request(`/api/v1/events/${id}`);
+  },
+  
+  /** POST /api/v1/events/:id/register */
+  register: async (id, data, token) => {
+    return request(`/api/v1/events/${id}/register`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: JSON.stringify(data)
+    });
+  },
+
+  /** POST /api/v1/organizer/events */
+  createEvent: async (data, token) => {
+    return request('/api/v1/organizer/events', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data)
+    });
+  },
+
+  /** PUT /api/v1/organizer/events/:id */
+  updateEvent: async (id, data, token) => {
+    return request(`/api/v1/organizer/events/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data)
+    });
+  },
+
+  /** DELETE /api/v1/organizer/events/:id */
+  deleteEvent: async (id, token) => {
+    return request(`/api/v1/organizer/events/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+  },
+
+  /** POST /api/v1/organizer/events/:id/publish */
+  publishEvent: async (id, token) => {
+    return request(`/api/v1/organizer/events/${id}/publish`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+  },
+
+  /** GET /api/v1/organizer/events/:id */
+  getOrganizerEvent: async (id, token) => {
+    return request(`/api/v1/organizer/events/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+  },
+
+  /** POST /api/v1/events/:id/save */
+  saveEvent: async (id, token) => {
+    return request(`/api/v1/events/${id}/save`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+  },
+
+  /** DELETE /api/v1/events/:id/save */
+  unsaveEvent: async (id, token) => {
+    return request(`/api/v1/events/${id}/save`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+  },
+
+  /** GET /api/v1/saved-events */
+  listSavedEvents: async (token) => {
+    return request('/api/v1/saved-events', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+  }
+};
+
+// ── AI (IMPLEMENTED – Phase 5) ─────────────────────────────────────────────────
+
+export const aiApi = {
+  /** POST /api/v1/ai/extract-event */
+  extractEvent: async (text, token, imageBase64 = null, imageMimeType = null) => {
+    const body = { text };
+    if (imageBase64) {
+      body.image_base64 = imageBase64;
+      body.image_mime_type = imageMimeType;
+    }
+    return request('/api/v1/ai/extract-event', {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: JSON.stringify(body)
+    });
+  },
+
+  /** POST /api/v1/ai/query */
+  queryEvents: async (query, token, options = {}) => {
+    return request('/api/v1/ai/query', {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: JSON.stringify({ query, ...options })
+    });
+  },
+
+  /** GET /api/v1/ai/health */
+  health: async () => {
+    return request('/api/v1/ai/health');
   },
 };
 

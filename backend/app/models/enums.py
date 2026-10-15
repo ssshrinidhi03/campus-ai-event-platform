@@ -1,4 +1,4 @@
-import enum
+﻿import enum
 
 
 class UserRole(str, enum.Enum):
@@ -27,3 +27,12 @@ class EventStatus(str, enum.Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
+
+
+class OrganizerRequestStatus(str, enum.Enum):
+    """
+    Status of organizer access request.
+    """
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
