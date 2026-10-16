@@ -21,15 +21,15 @@ For campus clubs and organizers, the platform automates event creation by ingest
 - **ORM & Data Access**: [SQLAlchemy 2.0](https://www.sqlalchemy.org/)
 - **Testing**: [Pytest](https://docs.pytest.org/) & [HTTPX](https://www.python-httpx.org/)
 
-### Database (Planned - Phase 2)
+### Database (Phase 2)
 - **Production Database**: PostgreSQL
 - **Development Database**: SQLite (zero-config local development fallback)
 
-### Frontend (Planned - Phase 9)
+### Frontend (Phase 9)
 - **Framework**: React with Vite
 - **Language**: JavaScript / TypeScript
 
-### GenAI & Search Pipeline (Planned - Phases 6–8)
+### GenAI & Search Pipeline (Phases 6–8)
 - **Extraction**: Modular LLM adapters (OpenAI / Gemini / Local LLMs)
 - **Search**: Vector embeddings and semantic search (RAG)
 
