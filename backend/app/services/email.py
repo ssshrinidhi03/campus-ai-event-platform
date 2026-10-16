@@ -1,4 +1,4 @@
-"""
+﻿"""
 Email Service Module
 Provides configurable email delivery for verification, password reset, and notifications.
 Supports multiple backends: console (development), SMTP (production), and mock (testing).
@@ -158,9 +158,6 @@ Click the link below to reset your password:
 This link will expire in 1 hour.
 
 If you didn't request this, please ignore this email and your password will remain unchanged.
-
----
-CampusConnect Team
 """
 
 RESET_EMAIL_HTML = """<!DOCTYPE html>
@@ -170,8 +167,8 @@ RESET_EMAIL_HTML = """<!DOCTYPE html>
         <h2 style="color: #4A6CF7;">Password Reset Request</h2>
         <p>You requested a password reset for your CampusConnect account.</p>
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{reset_link}" 
-               style="background-color: #4A6CF7; color: white; padding: 12px 30px; 
+            <a href="{reset_link}"
+               style="background-color: #4A6CF7; color: white; padding: 12px 30px;
                       text-decoration: none; border-radius: 5px; display: inline-block;">
                 Reset Password
             </a>
@@ -187,7 +184,6 @@ RESET_EMAIL_HTML = """<!DOCTYPE html>
 
 
 def send_verification_email(email: str, verification_link: str) -> bool:
-    """Send email verification link."""
     backend = get_email_backend()
     subject = VERIFICATION_EMAIL_SUBJECT
     body = VERIFICATION_EMAIL_TEXT.format(verification_link=verification_link)
@@ -196,9 +192,28 @@ def send_verification_email(email: str, verification_link: str) -> bool:
 
 
 def send_password_reset_email(email: str, reset_link: str) -> bool:
-    """Send password reset link."""
     backend = get_email_backend()
     subject = RESET_EMAIL_SUBJECT
     body = RESET_EMAIL_TEXT.format(reset_link=reset_link)
     html_body = RESET_EMAIL_HTML.format(reset_link=reset_link)
     return backend.send(email, subject, body, html_body)
+
+
+def send_welcome_email(email: str) -> bool:
+    backend = get_email_backend()
+    subject = "Welcome to CampusConnect!"
+    body = "Your account has been successfully created.\n\nYou can now log in and start exploring campus events.\n\n---\nCampusConnect Team"
+    html = """<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #4A6CF7;">Welcome to CampusConnect!</h2>
+        <p>Your account has been successfully created.</p>
+        <p>You can now log in and start exploring campus events.</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="color: #999; font-size: 12px;">CampusConnect Team</p>
+    </div>
+</body>
+</html>
+"""
+    return backend.send(email, subject, body, html)

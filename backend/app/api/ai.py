@@ -18,7 +18,10 @@ from app.schemas.ai import (
     RagQueryResponse,
     AiHealthResponse,
 )
-from app.services.ai import get_ai_provider, AiProviderError, AiProviderUnavailableError, AiProviderValidationError
+from app.services.ai import (
+    get_ai_provider, AiProviderError, AiProviderUnavailableError, AiProviderValidationError,
+    create_agent,
+)
 from app.models.user import User
 from app.models.event import Event
 from app.models.enums import EventStatus
@@ -235,6 +238,34 @@ async def ai_health():
     """Check AI service health and configuration."""
     provider = get_ai_provider()
     return await provider.health_check()
+
+
+@router.post("/agent-query", response_model=RagQueryResponse)
+async def agent_query(
+    request: RagQueryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Tool-using AI agent for campus event questions.
+
+    Workflow:
+      1. Interpret the user's question.
+      2. Invoke the EventSearchTool (vector store) to retrieve relevant APPROVED events.
+      3. Use the AI provider to formulate a grounded answer from the results.
+    
+    Only approved/published events are ever visible; draft/unpublished events
+    are excluded at the tool level (authorization boundary).
+    """
+    agent = create_agent(provider=get_ai_provider(), db_session=db)
+    try:
+        result = await agent.run(request.query)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Agent query failed: {str(e)}",
+        )
 
 
 __all__ = ["router"]

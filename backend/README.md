@@ -100,6 +100,26 @@ cp .env.example .env       # macOS/Linux
 ```
 *(No real secrets are needed for Phase 1. Default local settings work out of the box).*
 
+### Email Configuration
+
+The backend sends three types of emails: welcome, verification, and password reset. Email delivery is configurable via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EMAIL_BACKEND` | `console` | `console` (logs to stdout), `smtp` (real delivery), or `mock` (testing, captures in memory) |
+| `SMTP_HOST` | — | SMTP server host |
+| `SMTP_PORT` | `587` | SMTP server port |
+| `SMTP_USERNAME` | — | SMTP username |
+| `SMTP_PASSWORD` | — | SMTP password |
+| `SMTP_USE_TLS` | `True` | Use STARTTLS |
+| `SMTP_FROM_EMAIL` | — | Sender email address |
+| `SMTP_FROM_NAME` | `CampusConnect` | Sender display name |
+| `FRONTEND_URL` | `http://localhost:5173` | Base URL for verification/reset links |
+
+With `EMAIL_BACKEND=console` (default), all emails are logged to the console instead of being sent. Switch to `smtp` for production delivery. The `mock` backend is used in tests via `MockEmailBackend`.
+
+A welcome email is sent automatically after successful user registration. If email delivery fails in production, registration still succeeds — the failure is logged but does not roll back the user account.
+
 ---
 
 ## 4. Running the Backend Server

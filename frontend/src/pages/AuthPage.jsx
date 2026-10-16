@@ -73,15 +73,18 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      await authApi.register(
+      const data = await authApi.register(
         signupForm.name.trim(),
         signupForm.email.trim(),
         signupForm.password,
         signupForm.roll_number.trim().toUpperCase()
       );
+      // Store the registration token and user so the account is recognized
+      // as authenticated (but unverified) until email verification completes.
+      localStorage.setItem('caep_token', data.access_token);
+      localStorage.setItem('caep_user', JSON.stringify(data.user));
       setError('Registration successful! Please check your email to verify your account.');
-      setActiveTab('login');
-      setSignupForm({ name: '', roll_number: '', email: '', password: '', confirm_password: '' });
+      navigate('/verify-email');
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

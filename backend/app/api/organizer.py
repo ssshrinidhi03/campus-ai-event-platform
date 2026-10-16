@@ -1,4 +1,6 @@
 from datetime import date, datetime, time as dt_time
+import asyncio
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -17,6 +19,25 @@ from app.schemas.event import (
     OrganizerDashboardResponse,
     OrganizerDashboardStats,
 )
+from app.services.vector_store import SimpleVectorStore
+
+logger = logging.getLogger(__name__)
+
+_vector_store = None
+
+def _get_vector_store() -> SimpleVectorStore:
+    global _vector_store
+    if _vector_store is None:
+        _vector_store = SimpleVectorStore()
+    return _vector_store
+
+def _index_event_in_vector_store(event: Event) -> None:
+    """Index a published event in the vector store for RAG search."""
+    try:
+        asyncio.run(_get_vector_store().add_event(event))
+    except Exception as e:
+        # Vector store indexing must not break event publishing/updating
+        logger.warning(f"Failed to index event {event.id} in vector store: {e}")
 
 router = APIRouter(prefix="/organizer", tags=["Organizer Dashboard"])
 
@@ -459,6 +480,9 @@ def update_event(
     db.commit()
     db.refresh(event)
     
+    # Re-index the updated event in the vector store for RAG search
+    _index_event_in_vector_store(event)
+    
     return _event_to_response(event, current_user.name, 0)
 
 
@@ -539,5 +563,8 @@ def publish_event(
     db.add(event)
     db.commit()
     db.refresh(event)
+    
+    # Index the published event in the vector store for RAG search
+    _index_event_in_vector_store(event)
     
     return _event_to_response(event, current_user.name, 0)

@@ -71,6 +71,22 @@ export const authApi = {
       body: JSON.stringify({ name, email, password, confirm_password: password, roll_number, account_type: "STUDENT" }),
     });
   },
+
+  /** POST /api/v1/auth/verify-email */
+  verifyEmail: async (token) => {
+    return request('/api/v1/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  /** POST /api/v1/auth/resend-verification */
+  resendVerification: async (email) => {
+    return request('/api/v1/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
 };
 
 // ── Events (PLANNED – Phase 4) ───────────────────────────────────────────────

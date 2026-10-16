@@ -27,7 +27,7 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
 )
-from app.services.email import send_verification_email, send_password_reset_email
+from app.services.email import send_verification_email, send_password_reset_email, send_welcome_email
 from app.services.rate_limiter import check_rate_limit
 
 logger = logging.getLogger(__name__)
@@ -100,6 +100,11 @@ def register(req: RegisterRequest, request: Request, db: Session = Depends(get_d
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Send welcome email (registration must not fail if email delivery fails)
+    welcome_sent = send_welcome_email(user.email)
+    if not welcome_sent and settings.ENVIRONMENT == "production":
+        logger.warning(f"Failed to send welcome email to {user.email}")
 
     # Send verification email (never expose token in response)
     verification_link = f"{settings.FRONTEND_URL}/verify-email?token={verification_token}"

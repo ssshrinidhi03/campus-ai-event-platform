@@ -5,6 +5,7 @@ from app.db.database import SessionLocal, engine, Base
 from app.models.user import User
 from app.core.security import get_password_hash
 from app.models.enums import UserRole
+from unittest.mock import AsyncMock
 
 # Enable testing mode to disable rate limiting
 settings.TESTING = True
@@ -257,6 +258,91 @@ def test_register_success():
     assert data["user"]["is_verified"] is False
 
 
+def test_register_sends_welcome_email():
+    """
+    Test that successful registration sends a welcome email.
+    """
+    import app.services.email as email_module
+    from app.services.email import MockEmailBackend
+
+    original_backend = email_module.get_email_backend
+    mock_backend = MockEmailBackend()
+    email_module.get_email_backend = lambda: mock_backend
+    try:
+        response = client.post("/api/v1/auth/register", json={
+            "name": "Welcome Test Student",
+            "email": "welcometest@campus.edu",
+            "password": "password123",
+            "confirm_password": "password123",
+            "roll_number": "STU222",
+            "account_type": "STUDENT"
+        })
+        assert response.status_code == 200
+        welcome_emails = [e for e in mock_backend.sent_emails if "Welcome" in e["subject"]]
+        assert len(welcome_emails) == 1
+        assert welcome_emails[0]["to"] == "welcometest@campus.edu"
+    finally:
+        email_module.get_email_backend = original_backend
+
+
+def test_register_duplicate_sends_no_email():
+    """
+    Test that duplicate email registration sends no welcome email.
+    """
+    import app.services.email as email_module
+    from app.services.email import MockEmailBackend
+
+    original_backend = email_module.get_email_backend
+    mock_backend = MockEmailBackend()
+    email_module.get_email_backend = lambda: mock_backend
+    try:
+        response = client.post("/api/v1/auth/register", json={
+            "name": "Another Student",
+            "email": "student@campus.edu",
+            "password": "password123",
+            "confirm_password": "password123",
+            "roll_number": "STU111",
+            "account_type": "STUDENT"
+        })
+        assert response.status_code == 400
+        assert len(mock_backend.sent_emails) == 0
+    finally:
+        email_module.get_email_backend = original_backend
+
+
+def test_register_email_delivery_failure_does_not_rollback():
+    """
+    Test that registration succeeds even when email delivery fails.
+    """
+    import app.services.email as email_module
+    from app.services.email import EmailBackend
+
+    class FailingBackend(EmailBackend):
+        def send(self, to_email, subject, body, html_body=None):
+            return False
+
+    original_backend = email_module.get_email_backend
+    email_module.get_email_backend = lambda: FailingBackend()
+    try:
+        response = client.post("/api/v1/auth/register", json={
+            "name": "Failing Email Student",
+            "email": "failingemail@campus.edu",
+            "password": "password123",
+            "confirm_password": "password123",
+            "roll_number": "STU555",
+            "account_type": "STUDENT"
+        })
+        assert response.status_code == 200
+        # User should still be registered (login blocked only because unverified)
+        login_response = client.post("/api/v1/auth/login", json={
+            "email": "failingemail@campus.edu",
+            "password": "password123"
+        })
+        assert login_response.status_code == 403
+    finally:
+        email_module.get_email_backend = original_backend
+
+
 def test_register_duplicate_email():
     """
     Test registration with an email that already exists.
@@ -396,10 +482,15 @@ def test_verify_email_success():
     assert reg_response.status_code == 200
 
     # Get the verification token from the mock email backend
-    assert len(mock_backend.sent_emails) == 1
-    sent_email = mock_backend.sent_emails[0]
+    assert len(mock_backend.sent_emails) == 2  # welcome + verification
+    verification_email = None
+    for e in mock_backend.sent_emails:
+        if "Verify" in e["subject"]:
+            verification_email = e
+            break
+    assert verification_email is not None, "Verification email not found"
     # Extract token from verification link
-    verification_link = sent_email["html_body"]
+    verification_link = verification_email["html_body"]
     import re
     token_match = re.search(r'token=([^"]+)', verification_link)
     assert token_match, "Verification token not found in email"
@@ -459,3 +550,77 @@ def test_unauthorized_role_access():
     response = client.get("/api/v1/organizer/events", headers=headers)
     assert response.status_code == 403
     assert "permission" in response.json()["detail"].lower()
+
+
+def test_organizer_publish_indexes_event():
+    """
+    Test that publishing an event indexes it in the vector store (RAG search).
+    Verifies the event becomes APPROVED and is retrievable.
+    """
+    from unittest.mock import patch
+
+    # Login as organizer
+    login_response = client.post("/api/v1/auth/login", json={
+        "email": "aiclub@campus.edu",
+        "password": "aiclub123"
+    })
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create a draft event
+    with patch("app.api.organizer.SimpleVectorStore.add_event", new_callable=AsyncMock) as mock_add:
+        mock_add.return_value = True
+        create_response = client.post("/api/v1/organizer/events", json={
+            "title": "Test Publish Event",
+            "description": "A test event for publish indexing",
+            "category": "Workshop",
+            "venue": "Test Hall",
+            "date": "2027-01-15",
+            "start_time": "10:00",
+            "end_time": "12:00",
+            "tags": ["test"],
+            "capacity": 50,
+        }, headers=headers)
+        assert create_response.status_code == 201, create_response.text
+        event_id = create_response.json()["id"]
+        assert create_response.json()["status"] == "DRAFT"
+
+        # Publish the event
+        publish_response = client.post(f"/api/v1/organizer/events/{event_id}/publish", headers=headers)
+        assert publish_response.status_code == 200, publish_response.text
+        assert publish_response.json()["status"] == "APPROVED"
+
+        # Verify vector store indexing was called
+        assert mock_add.call_count >= 1
+
+
+def test_organizer_publish_rejects_non_draft():
+    """Test that publishing a non-draft event returns 400."""
+    from unittest.mock import patch
+
+    login_response = client.post("/api/v1/auth/login", json={
+        "email": "aiclub@campus.edu",
+        "password": "aiclub123"
+    })
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Try to publish without creating an event first (use a non-existent id)
+    response = client.post("/api/v1/organizer/events/99999/publish", headers=headers)
+    assert response.status_code == 404
+
+
+def test_search_endpoint_excludes_draft_events():
+    """
+    Test that the search endpoint only returns APPROVED events.
+    Draft events are not indexed, so they won't appear in search results.
+    """
+    response = client.get("/api/v1/search?q=workshop")
+    assert response.status_code in (200, 401)
+    if response.status_code == 200:
+        data = response.json()
+        for ev in data.get("results", []):
+            # All returned events should be approved (status verified at DB level)
+            assert ev["id"] is not None

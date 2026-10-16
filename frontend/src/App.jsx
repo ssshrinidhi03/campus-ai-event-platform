@@ -9,14 +9,17 @@ import OrganizerDashboard from './pages/OrganizerDashboard';
 import RegistrationPage from './pages/RegistrationPage';
 import CreateEventPage from './pages/CreateEventPage';
 import MyEventsPage from './pages/MyEventsPage';
+import ChatPage from './pages/ChatPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 
 import './App.css';
 
 // Protected Route wrapper
 function ProtectedRoute({ children, role }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isVerified } = useAuth();
   
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isVerified) return <Navigate to="/verify-email" replace />;
   if (role && user?.role !== role) return <Navigate to="/" replace />;
   
   return children;
@@ -32,6 +35,7 @@ function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/login" element={<AuthPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/events" element={<EventsPage />} />
               <Route path="/events/:id" element={<EventDetailPage />} />
               <Route path="/events/:id/register" element={
@@ -44,6 +48,7 @@ function App() {
                   <MyEventsPage />
                 </ProtectedRoute>
               } />
+              <Route path="/chat" element={<ChatPage />} />
               
               {/* Protected Organizer Routes */}
               <Route 

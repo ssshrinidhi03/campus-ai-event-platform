@@ -21,6 +21,8 @@ export function AuthProvider({ children }) {
     }
   });
 
+  const isVerified = user ? user.is_verified === true : false;
+
   const login = useCallback(async (email, password) => {
     const data = await authApi.login(email, password);
     setUser(data.user);
@@ -28,6 +30,11 @@ export function AuthProvider({ children }) {
     localStorage.setItem('caep_user', JSON.stringify(data.user));
     localStorage.setItem('caep_token', data.access_token);
     return data;
+  }, []);
+
+  const setVerified = useCallback((verifiedUser) => {
+    setUser(verifiedUser);
+    localStorage.setItem('caep_user', JSON.stringify(verifiedUser));
   }, []);
 
   const logout = useCallback(() => {
@@ -38,7 +45,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, token, login, setVerified, logout, isAuthenticated: !!user, isVerified }}>
       {children}
     </AuthContext.Provider>
   );

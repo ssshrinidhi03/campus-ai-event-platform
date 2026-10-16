@@ -7,6 +7,7 @@ const NAV_LINKS = {
   STUDENT: [
     { to: '/events', label: 'Discover' },
     { to: '/my-events', label: 'My Events' },
+    { to: '/chat', label: 'AI Assistant' },
   ],
   ORGANIZER: [
     { to: '/organizer', label: 'Dashboard' },
