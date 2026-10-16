@@ -506,9 +506,12 @@ Required output JSON format:
             "event title": "title",
             "title": "title",
             "event name": "title",
+            "name": "title",
             # Category variations
             "category": "category",
             "event type": "category",
+            "event category": "category",
+            "event_category": "category",
             "type": "category",
             # Venue variations
             "venue": "venue",
@@ -554,6 +557,8 @@ Required output JSON format:
             "description": "description",
             "details": "description",
             "event description": "description",
+            "topics covered": "description",
+            "topics": "description",
             "organization": "organization",
             "organizer": "organization",
             "organised by": "organization",
@@ -586,6 +591,8 @@ Required output JSON format:
                 continue
 
             label = (m.group("label") or m.group("label2") or "").strip().lower().rstrip(":")
+            # Normalize underscores to spaces so "event_category" matches "event category"
+            label = label.replace("_", " ")
             same_line_value = (m.group("same_line_value") or m.group("same_line_value2") or "").strip()
 
             # Skip obvious non-field labels (introductory text, etc.)
@@ -603,17 +610,41 @@ Required output JSON format:
                 value = same_line_value
                 i += 1
             else:
-                # Value is on the next non-empty line
+                # Value is on the next non-empty line(s). If the first value
+                # line is a bullet/list item, collect all consecutive bullet
+                # lines so multi-line values (e.g. "Topics Covered") are not
+                # truncated. Otherwise use just the first line (original behavior).
                 j = i + 1
                 while j < len(lines) and not lines[j].strip():
                     j += 1
                 if j >= len(lines):
                     i += 1
                     continue
-                # Strip leading dash/bullet markers from value line too
-                value = re.sub(r"^\s*[-•]\s*", "", lines[j])
-                value = re.sub(r"^\s*\*(?!\*)\s*", "", value).strip()
-                i = j + 1
+                first_line = lines[j]
+                bullet_cleaned = re.sub(r"^\s*[-•]\s*", "", first_line)
+                bullet_cleaned = re.sub(r"^\s*\*(?!\*)\s*", "", bullet_cleaned).strip()
+                if bullet_cleaned != first_line.strip():
+                    # First line is a bullet: collect all consecutive bullet lines
+                    value_lines = [bullet_cleaned]
+                    j += 1
+                    while j < len(lines):
+                        raw_line = lines[j]
+                        stripped = raw_line.strip()
+                        if not stripped:
+                            break
+                        bc = re.sub(r"^\s*[-•]\s*", "", raw_line)
+                        bc = re.sub(r"^\s*\*(?!\*)\s*", "", bc).strip()
+                        if bc != stripped:
+                            value_lines.append(bc)
+                            j += 1
+                        else:
+                            break
+                    value = " ".join(value_lines)
+                    i = j
+                else:
+                    # First line is not a bullet: use it as the value
+                    value = bullet_cleaned
+                    i = j + 1
 
             # Remove trailing markdown artifacts
             value = re.sub(r"\*\*$", "", value).strip()
@@ -775,6 +806,7 @@ Required output JSON format:
             "description": "description",
             "event_description": "description",
             "details": "description",
+            "topics_covered": "description",
             # Venue variations
             "event_venue": "venue",
             "location": "venue",
@@ -814,8 +846,11 @@ Required output JSON format:
 
         # Normalize keys using field_map
         normalized: Dict[str, Any] = {}
+        list_fields = {"tags"}
         for key, value in data.items():
             canonical = field_map.get(key, key)
+            if isinstance(value, list) and canonical not in list_fields:
+                value = " ".join(str(v) for v in value)
             normalized[canonical] = value
 
         # Extract warnings from AI response

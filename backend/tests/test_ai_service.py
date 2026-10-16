@@ -1259,6 +1259,214 @@ Conference Room B"""
         assert extracted.end_time == "12:00"
 
     @pytest.mark.asyncio
+    async def test_natural_language_topics_covered_maps_to_description(self):
+        """'Topics Covered:' label should map to description field (real AI provider uses this label)."""
+        provider = self._make_provider()
+        content = """**Event Title:** AI and Machine Learning Workshop
+**Date:** October 20, 2026
+**Time:** 9:00 AM to 5:30 PM
+**Venue:** Seminar Hall 2
+**Topics Covered:**
+- Neural Networks
+- Transformer Architectures"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI and Machine Learning Workshop"
+        assert extracted.description == "Neural Networks Transformer Architectures"
+        assert extracted.venue == "Seminar Hall 2"
+        assert extracted.start_time == "09:00"
+        assert extracted.end_time == "17:30"
+
+    @pytest.mark.asyncio
+    async def test_json_dict_topics_covered_maps_to_description(self):
+        """JSON dict with 'topics_covered' key maps to description field."""
+        provider = self._make_provider()
+        content = json.dumps({
+            "event_name": "AI Workshop",
+            "date": "2026-10-20",
+            "start_time": "09:00",
+            "end_time": "12:00",
+            "venue": "Lab 204",
+            "topics_covered": ["neural networks", "transformer architectures"],
+            "category": "Workshop",
+        })
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI Workshop"
+        assert extracted.description == "neural networks transformer architectures"
+
+
+    @pytest.mark.asyncio
+    async def test_natural_language_name_label_maps_to_title(self):
+        """'Name:' label should map to title field (real AI sometimes uses Name instead of Title)."""
+        provider = self._make_provider()
+        content = """**Event:**
+- **Name:** AI Workshop
+- **Category:** Workshop
+- **Date:** October 20, 2026
+- **Venue:** Lab 204, CS Block
+- **Start Time:** 9:00 AM
+- **End Time:** 12:00 PM
+- **Organizer:** AI Club"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI Workshop"
+        assert extracted.category == "Workshop"
+        assert extracted.venue == "Lab 204, CS Block"
+        assert extracted.date is not None
+        assert extracted.start_time == "09:00"
+        assert extracted.end_time == "12:00"
+        assert extracted.organization == "AI Club"
+
+    @pytest.mark.asyncio
+    async def test_natural_language_event_category_label(self):
+        """'Event Category:' label should map to category field."""
+        provider = self._make_provider()
+        content = """**Name:** AI Workshop
+**Event Category:** Workshop
+**Event Date:** October 20, 2026
+**Start Time:** 9:00 AM
+**End Time:** 12:00 PM
+**Venue:** Lab 204, CS Block"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI Workshop"
+        assert extracted.category == "Workshop"
+        assert extracted.date is not None
+        assert extracted.start_time == "09:00"
+        assert extracted.end_time == "12:00"
+
+    @pytest.mark.asyncio
+    async def test_natural_language_underscore_field_names(self):
+        """Underscore field names (event_category, event_date, start_time, end_time) should normalize."""
+        provider = self._make_provider()
+        content = """**Name:** AI Workshop
+**Event_Category:** Workshop
+**Event_Date:** October 20, 2026
+**Start_Time:** 09:00
+**End_Time:** 12:00
+**Venue:** Lab 204, CS Block"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI Workshop"
+        assert extracted.category == "Workshop"
+        assert extracted.date is not None
+        assert extracted.start_time == "09:00"
+        assert extracted.end_time == "12:00"
+
+    @pytest.mark.asyncio
+    async def test_natural_language_incomplete_announcement(self):
+        """A genuinely incomplete announcement leaves missing fields as None with warnings."""
+        provider = self._make_provider()
+        content = """**Name:** AI Workshop
+**Category:** Workshop"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI Workshop"
+        assert extracted.category == "Workshop"
+        assert extracted.venue is None
+        assert extracted.date is None
+        assert extracted.start_time is None
+        assert extracted.end_time is None
+        warning_fields = {w.field for w in warnings}
+        assert "venue" in warning_fields
+        assert "date" in warning_fields
+        assert "start_time" in warning_fields
+        assert "end_time" in warning_fields
+
+    @pytest.mark.asyncio
+    async def test_natural_language_am_pm_time_conversion(self):
+        """AM/PM times should be converted to 24-hour HH:MM format."""
+        provider = self._make_provider()
+        content = """**Name:** AI Workshop
+**Category:** Workshop
+**Date:** October 20, 2026
+**Start Time:** 9:00 AM
+**End Time:** 5:30 PM
+**Venue:** Lab 204, CS Block"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.start_time == "09:00"
+        assert extracted.end_time == "17:30"
+
+    @pytest.mark.asyncio
+    async def test_natural_language_ampm_time_range_separator(self):
+        """Time range with AM/PM separator should parse start and end times."""
+        provider = self._make_provider()
+        content = """**Name:** AI Workshop
+**Category:** Workshop
+**Date:** October 20, 2026
+**Time:** 09:00 AM - 12:00 PM
+**Venue:** Lab 204, CS Block"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.start_time == "09:00"
+        assert extracted.end_time == "12:00"
+
+    @pytest.mark.asyncio
+    async def test_natural_language_invalid_date_is_none(self):
+        """Invalid or unparseable dates should be None, not invented."""
+        provider = self._make_provider()
+        content = """**Name:** AI Workshop
+**Category:** Workshop
+**Date:** not-a-real-date
+**Venue:** Lab 204"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI Workshop"
+        assert extracted.date is None
+        assert any(w.field == "date" for w in warnings)
+
+    @pytest.mark.asyncio
+    async def test_natural_language_invalid_time_is_none(self):
+        """Invalid or unparseable times should be None."""
+        provider = self._make_provider()
+        content = """**Name:** AI Workshop
+**Category:** Workshop
+**Date:** October 20, 2026
+**Start Time:** not-a-real-time
+**End Time:** also-not-a-time
+**Venue:** Lab 204"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI Workshop"
+        assert extracted.start_time is None
+        assert extracted.end_time is None
+        warning_fields = {w.field for w in warnings}
+        assert "start_time" in warning_fields
+        assert "end_time" in warning_fields
+
+    @pytest.mark.asyncio
+    async def test_natural_language_description_alias(self):
+        """'Details:' label should be normalized to description field."""
+        provider = self._make_provider()
+        content = """**Name:** AI Seminar
+**Category:** Seminar
+**Date:** October 20, 2026
+**Start Time:** 9:00 AM
+**End Time:** 12:00 PM
+**Venue:** Lab 204, CS Block
+**Details:** This seminar covers neural networks, transformer architectures, and practical machine learning applications."""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI Seminar"
+        assert extracted.description == "This seminar covers neural networks, transformer architectures, and practical machine learning applications."
+
+    @pytest.mark.asyncio
+    async def test_natural_language_category_enum_validation(self):
+        """Category should be validated against supported enum values."""
+        provider = self._make_provider()
+        content = """**Name:** AI Workshop
+**Category:** NotARealCategory
+**Date:** October 20, 2026
+**Venue:** Lab 204"""
+        request = EventExtractionRequest(text="Test")
+        extracted, warnings = provider._parse_extraction_response(content, request)
+        assert extracted.title == "AI Workshop"
+        # Invalid category is mapped to 'Other' (valid enum fallback)
+        assert extracted.category == "Other"
+
+    @pytest.mark.asyncio
     async def test_natural_language_details_label(self):
         """Natural language response with 'Details:' label maps to description."""
         provider = self._make_provider()

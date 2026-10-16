@@ -189,6 +189,7 @@ export default function CreateEventPage() {
         const updates = {};
         if (data.title) updates.title = data.title;
         if (data.description) updates.description = data.description;
+        else if (data.details) updates.description = data.details;
         if (data.category) updates.category = data.category;
         if (data.organization) updates.organization = data.organization;
         if (data.venue) updates.venue = data.venue;
