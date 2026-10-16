@@ -74,3 +74,6 @@ logs/
 *.sqlite
 *.sqlite3
 *.db
+
+# Generated RAG vector index
+backend/data/embeddings.json
