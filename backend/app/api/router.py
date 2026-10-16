@@ -8,8 +8,9 @@ from app.db.database import get_db
 from app.models.registration import EventRegistration
 from app.models.saved_event import SavedEvent
 from app.models.event import Event
+from app.models.user import User
 from app.models.enums import EventStatus
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_organizer
 from .events import router as events_router
 from .auth import router as auth_router
 from .organizer import router as organizer_router
@@ -176,6 +177,63 @@ def list_saved_events(current_user = Depends(get_current_user), db: Session = De
                 event_venue=event.venue or "",
                 event_organizer_name=event.organizer.name if event.organizer else ""
             ))
+    
+    return result
+
+
+class RegistrationResponse(BaseModel):
+    id: int
+    event_id: int
+    user_id: int
+    registered_at: datetime
+    status: str
+    event_title: str
+    event_category: str
+    event_date: str
+    event_venue: str
+    event_organizer_name: str
+
+    class Config:
+        from_attributes = True
+
+
+@api_router.get(
+    "/registrations",
+    response_model=List[RegistrationResponse],
+    summary="Get Current User's Registrations",
+    tags=["Events"]
+)
+def list_user_registrations(
+    current_user = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    """Get all event registrations for the authenticated student."""
+    registrations = (
+        db.query(EventRegistration, Event)
+        .join(Event, EventRegistration.event_id == Event.id)
+        .filter(EventRegistration.user_id == current_user.id)
+        .order_by(EventRegistration.registered_at.desc())
+        .all()
+    )
+    
+    result = []
+    for reg, event in registrations:
+        organizer_name = ""
+        if event.organizer_id:
+            organizer = db.query(User).filter(User.id == event.organizer_id).first()
+            if organizer:
+                organizer_name = organizer.name
+        result.append(RegistrationResponse(
+            id=reg.id,
+            event_id=reg.event_id,
+            user_id=reg.user_id,
+            registered_at=reg.registered_at,
+            status=reg.status,
+            event_title=event.title,
+            event_category=event.category or "",
+            event_date=event.date.isoformat() if event.date else "",
+            event_venue=event.venue or "",
+            event_organizer_name=organizer_name,
+        ))
     
     return result
 

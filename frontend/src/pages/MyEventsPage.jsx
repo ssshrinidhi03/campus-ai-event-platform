@@ -26,12 +26,10 @@ export default function MyEventsPage() {
       setLoading(true);
       const [savedData, regData] = await Promise.all([
         eventsApi.listSavedEvents(token),
-        eventsApi.listOrganizerEvents(token).catch(() => []) // This returns organizer events, not user registrations
+        eventsApi.listRegistrations(token),
       ]);
       setSavedEvents(savedData || []);
-      // For now, we'll load registrations from saved events as a placeholder
-      // In a full implementation, there would be a separate endpoint for user registrations
-      setRegistrations([]);
+      setRegistrations(regData || []);
     } catch (e) {
       setError(e.message || 'Unable to load events');
     } finally {

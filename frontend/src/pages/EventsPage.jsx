@@ -1,10 +1,13 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { eventsApi } from '../services/api';
 import EventCard from '../components/EventCard';
+import { useAuth } from '../context/AuthContext';
 import './EventsPage.css';
 
 export default function EventsPage() {
+  const { token, isAuthenticated } = useAuth();
   const [events, setEvents] = useState([]);
+  const [savedEventIds, setSavedEventIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
@@ -19,26 +22,33 @@ export default function EventsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Fetch events when search or category changes
+  // Fetch events and saved status
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
         const params = {};
         if (searchDebounced) params.q = searchDebounced;
         if (activeCategory && activeCategory !== 'All') params.category = activeCategory;
-        
+
         const data = await eventsApi.list(params);
         setEvents(data.items || data);
+
+        // Load saved events for authenticated users to show correct save state
+        if (isAuthenticated && token) {
+          const saved = await eventsApi.listSavedEvents(token);
+          const savedIds = new Set((saved || []).map(s => s.event_id));
+          setSavedEventIds(savedIds);
+        }
       } catch (e) {
         setError(e.message || 'Unable to load events');
       } finally {
         setLoading(false);
       }
     };
-    fetchEvents();
-  }, [searchDebounced, activeCategory]);
+    fetchData();
+  }, [searchDebounced, activeCategory, isAuthenticated, token]);
 
   const ALL_CATEGORIES = useMemo(() => ['All', ...new Set(events.map(e => e.category).filter(Boolean))], [events]);
 
@@ -120,7 +130,7 @@ export default function EventsPage() {
           <div className="events-grid">
             {events.map((event, i) => (
               <div key={event.id} style={{ animationDelay: `${i * 60}ms` }} className="animate-fade-in">
-                <EventCard event={event} />
+                <EventCard event={event} isSaved={savedEventIds.has(event.id)} />
               </div>
             ))}
           </div>

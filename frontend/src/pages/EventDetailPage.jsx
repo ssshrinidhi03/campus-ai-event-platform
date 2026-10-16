@@ -28,6 +28,8 @@ export default function EventDetailPage({ isOrganizerView = false }) {
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [registrations, setRegistrations] = useState([]);
+  const [showRegistrations, setShowRegistrations] = useState(false);
 
   useEffect(() => {
     async function loadEvent() {
@@ -35,6 +37,8 @@ export default function EventDetailPage({ isOrganizerView = false }) {
         let data;
         if (isOrganizerView && token) {
           data = await eventsApi.getOrganizerEvent(id, token);
+          // Backend returns registrations within the event detail response
+          setRegistrations(data.registrations || []);
         } else {
           data = await eventsApi.get(id);
         }
@@ -157,6 +161,37 @@ export default function EventDetailPage({ isOrganizerView = false }) {
               </div>
             )}
           </main>
+
+          {/* Organizer: Registrations section */}
+          {isOrganizerView && registrations.length > 0 && (
+            <section className="registrations-section animate-fade-in">
+              <div className="registrations-header">
+                <button
+                  onClick={() => setShowRegistrations(!showRegistrations)}
+                  className="btn btn-ghost btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
+                >
+                  {showRegistrations ? '▾' : '▾'}
+                  Registrations ({registrations.length})
+                </button>
+              </div>
+              {showRegistrations && (
+                <div className="registrations-list">
+                  {registrations.map(reg => (
+                    <div key={reg.id} className="registration-row">
+                      <div className="registration-info">
+                        <div className="registration-name">{reg.user_name}</div>
+                        <div className="registration-meta">
+                          {reg.user_email} · {reg.registered_at ? new Date(reg.registered_at).toLocaleDateString() : 'TBD'}
+                        </div>
+                      </div>
+                      <span className={`badge badge-brand`}>{reg.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Sidebar */}
           <aside className="event-detail-sidebar animate-slide-in">

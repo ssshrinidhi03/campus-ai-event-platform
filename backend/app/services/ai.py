@@ -161,6 +161,33 @@ class NavigateLabsProvider(AiProvider):
         self._log_response(endpoint, result, duration_ms)
         return result
 
+    async def get_embedding(self, text: str) -> List[float]:
+        """Get embedding from Navigate Labs /embeddings endpoint (text-embedding-3-small)."""
+        if not self.config.api_key:
+            raise AiProviderUnavailableError("AI API key not configured")
+        try:
+            payload = {
+                "model": self.config.embedding_model,
+                "input": text,
+            }
+            result = await self._make_request("/embeddings", payload)
+            data = result.get("data", [])
+            if data and isinstance(data, list) and len(data) > 0:
+                embedding = data[0].get("embedding")
+                if isinstance(embedding, list):
+                    return embedding
+            logger.warning("Embedding response missing embedding data")
+            return []
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Navigate Labs embedding API error: {e.response.status_code}")
+            raise AiProviderError(f"AI service error: {e.response.status_code}")
+        except httpx.TimeoutException:
+            logger.error("Navigate Labs embedding API timeout")
+            raise AiProviderError("AI service timeout")
+        except Exception as e:
+            logger.error(f"Embedding generation failed: {type(e).__name__}: {e}")
+            raise AiProviderError(f"Embedding generation failed: {str(e)}")
+
     async def extract_event(self, request: EventExtractionRequest) -> EventExtractionResponse:
         """Extract event data using Navigate Labs extraction model."""
         start_time = time.time()
@@ -1094,18 +1121,18 @@ Required output JSON format:
         try:
             context = self._build_events_context(events_context)
 
-            prompt = f"""You are a campus event assistant. Answer the user's question based ONLY on the provided event data.
+            prompt = f"""You are a campus event assistant. Answer the user's question using ONLY the provided event data below.
 
-EVENT DATA:
+EVENT DATA (retrieved approved campus events):
 {context}
 
 USER QUERY: {request.query}
 
 RULES:
-1. Only use information from the provided event data.
-2. If the query cannot be answered from the data, say so.
-3. Be concise and helpful.
-4. Mention specific event titles, dates, and organizers when relevant.
+1. Answer using ONLY information from the provided event data. Do not invent events, dates, venues, or details.
+2. If no relevant event is found in the data, say "I couldn't find any relevant events matching your question."
+3. Be concise and helpful. Mention specific event titles, dates, venues, and organizers when relevant.
+4. Distinguish verified event facts from general suggestions.
 5. Return a natural language answer.
 
 ANSWER:"""

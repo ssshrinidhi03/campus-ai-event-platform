@@ -28,6 +28,7 @@ export default function EventCard({ event, isSaved = false }) {
   const navigate = useNavigate();
   const [saved, setSaved] = useState(isSaved);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -38,6 +39,7 @@ export default function EventCard({ event, isSaved = false }) {
     }
     if (!token) return;
     setSaving(true);
+    setSaveError(null);
     try {
       if (saved) {
         await eventsApi.unsaveEvent(event.id, token);
@@ -47,8 +49,7 @@ export default function EventCard({ event, isSaved = false }) {
         setSaved(true);
       }
     } catch (err) {
-      // Error handled silently or show toast in future
-      console.error('Save error:', err);
+      setSaveError(err.message || 'Save failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -131,6 +132,11 @@ export default function EventCard({ event, isSaved = false }) {
             >
               {saved ? '★' : '☆'}
             </button>
+          )}
+          {saveError && (
+            <span className="badge badge-rose" style={{ fontSize: '0.75rem', marginLeft: 'var(--space-2)' }}>
+              {saveError}
+            </span>
           )}
         </div>
       </div>

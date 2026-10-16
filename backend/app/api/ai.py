@@ -5,12 +5,15 @@ Endpoints for AI-powered event extraction and RAG queries.
 
 import base64
 import time
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
+
 from app.db.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_organizer
 from app.schemas.ai import (
     EventExtractionRequest,
     EventExtractionResponse,
@@ -22,6 +25,7 @@ from app.services.ai import (
     get_ai_provider, AiProviderError, AiProviderUnavailableError, AiProviderValidationError,
     create_agent,
 )
+from app.services.vector_store import SimpleVectorStore
 from app.models.user import User
 from app.models.event import Event
 from app.models.enums import EventStatus
@@ -176,38 +180,61 @@ async def query_events(
     - **date_from**: Filter events from this date
     - **date_to**: Filter events until this date
     """
-    # Build base query - only published/approved events visible to students
-    query = db.query(Event).filter(Event.status == EventStatus.APPROVED)
-    
-    # Apply filters
-    if request.categories:
-        query = query.filter(Event.category.in_(request.categories))
-    if request.date_from:
-        query = query.filter(Event.date >= request.date_from)
-    if request.date_to:
-        query = query.filter(Event.date <= request.date_to)
-    
-    # Get events for context
-    events = query.order_by(Event.date.desc()).limit(100).all()
-    
-    # Convert to dict for RAG context
+    provider = get_ai_provider()
+    vs = SimpleVectorStore()
+
+    # Step 1: Semantic retrieval from vector store (only APPROVED events are indexed)
+    try:
+        search_results = await vs.search(
+            request.query,
+            limit=request.limit,
+            filters={"category": request.categories[0]} if request.categories else None,
+        )
+    except Exception as e:
+        logger.warning(f"Vector store search failed: {e}")
+        search_results = []
+
+    # Step 2: Re-verify approval status and fetch full event data from DB
     events_context = []
-    for event in events:
+    seen_ids = set()
+    for emb, score in search_results:
+        if emb.event_id in seen_ids:
+            continue
+        ev = (
+            db.query(Event)
+            .filter(Event.id == emb.event_id, Event.status == EventStatus.APPROVED)
+            .first()
+        )
+        if not ev:
+            continue
+        seen_ids.add(emb.event_id)
         events_context.append({
-            "id": event.id,
-            "title": event.title,
-            "description": event.description,
-            "category": event.category,
-            "venue": event.venue,
-            "date": event.date.isoformat() if event.date else None,
-            "start_time": event.start_time,
-            "end_time": event.end_time,
-            "organizer_name": event.organizer.full_name if event.organizer else None,
-            "tags": event.tags or [],
+            "id": ev.id,
+            "title": ev.title,
+            "description": ev.description,
+            "category": ev.category,
+            "venue": ev.venue,
+            "date": ev.date.isoformat() if ev.date else None,
+            "start_time": ev.start_time.strftime("%H:%M") if ev.start_time else None,
+            "end_time": ev.end_time.strftime("%H:%M") if ev.end_time else None,
+            "organizer_name": ev.organizer.name if ev.organizer else None,
+            "tags": ev.tags.split(",") if ev.tags else [],
+            "relevance_score": float(score),
         })
 
-    provider = get_ai_provider()
-    
+    # Apply date filters server-side
+    if request.date_from:
+        from datetime import datetime
+        date_from = request.date_from.date() if hasattr(request.date_from, 'date') else request.date_from
+        events_context = [e for e in events_context if e.get("date") and e["date"] >= str(date_from)]
+    if request.date_to:
+        from datetime import datetime
+        date_to = request.date_to.date() if hasattr(request.date_to, 'date') else request.date_to
+        events_context = [e for e in events_context if e.get("date") and e["date"] <= str(date_to)]
+
+    # Limit results
+    events_context = events_context[:request.limit]
+
     try:
         result = await provider.query_events(request, events_context)
         return result
@@ -230,6 +257,27 @@ async def query_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"RAG query failed: {str(e)}"
+        )
+
+
+@router.post("/reindex", response_model=dict)
+async def reindex_events(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_organizer),
+):
+    """
+    Manually reindex all approved events into the vector store for RAG search.
+    Requires organizer privileges.
+    """
+    vs = SimpleVectorStore()
+    try:
+        stats = await vs.reindex_all(db)
+        return {"message": "Reindexing complete", "stats": stats}
+    except Exception as e:
+        logger.error(f"Reindex failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Reindex failed: {str(e)}"
         )
 
 

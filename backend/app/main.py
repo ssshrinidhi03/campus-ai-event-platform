@@ -1,10 +1,36 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.errors import setup_exception_handlers
 from app.schemas.health import HealthResponse
 from app.api.router import api_router
+from app.db.database import SessionLocal, init_db
+from app.services.vector_store import SimpleVectorStore
+from app.models.event import Event
+from app.models.enums import EventStatus
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize database and reindex approved events on startup."""
+    init_db()
+    db = SessionLocal()
+    try:
+        # Reindex approved events into the vector store for RAG search
+        vs = SimpleVectorStore()
+        stats = await vs.reindex_all(db)
+        logger.info(f"Vector store reindexed on startup: {stats}")
+    except Exception as e:
+        logger.warning(f"Startup reindex failed: {e}")
+    finally:
+        db.close()
+    yield
+
 
 # Initialize FastAPI application
 app = FastAPI(
@@ -13,6 +39,7 @@ app = FastAPI(
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Configure CORS middleware using application settings

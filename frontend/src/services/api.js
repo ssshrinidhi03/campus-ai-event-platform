@@ -201,7 +201,16 @@ export const eventsApi = {
         'Authorization': `Bearer ${token}`,
       }
     });
-  }
+  },
+
+  /** GET /api/v1/registrations */
+  listRegistrations: async (token) => {
+    return request('/api/v1/registrations', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+  },
 };
 
 // ── AI (IMPLEMENTED – Phase 5) ─────────────────────────────────────────────────
