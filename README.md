@@ -169,7 +169,25 @@ pytest
 
 ---
 
-## 7. Development Roadmap
+## 7. Demo Video
+
+A recorded demonstration of the Campus AI Event Platform is available for review:
+
+- **Video:** [`docs/demo.mp4`](docs/demo.mp4) (~2.5 MB, MP4/H.264, 1920×1080, ~3:43 runtime)
+- **Script:** [`docs/demo-script.md`](docs/demo-script.md) — scene-by-scene outline and on-screen captions
+- **Test report:** [`docs/demo-test-report.md`](docs/demo-test-report.md) — workflows demonstrated and any limitations
+
+The video is a fully automated, headless browser recording (Playwright) showing real application functionality:
+student discovery, event search/filter, save and register, My Events, AI chat, organizer dashboard,
+AI-assisted event creation, save draft, and publish. No narration, webcam, or fabricated data is used.
+
+**Note:** The AI service (Nexus AI / Navigate Labs) runs in degraded mode in the demo because no
+`NAVIGATE_API_KEY` is configured. AI extraction and RAG responses use the built-in mock provider,
+which is shown honestly in the video.
+
+---
+
+## 8. Development Roadmap
 
 We are following an incremental, 13-phase development approach:
 

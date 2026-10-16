@@ -115,6 +115,6 @@ class SimpleVectorStore:
             if filters and filters.get('category'):
                 if str(emb.category).lower()!=str(filters['category']).lower(): continue
             s=self._cosine(qe,emb.embedding)
-            if s>0.05: out.append((emb,s))
+            if s>0.20: out.append((emb,s))
         out.sort(key=lambda x:x[1],reverse=True); return out[:limit]
     def get_stats(self): return {'total_embeddings':len(self.embeddings),'persist_path':self.persist_path}

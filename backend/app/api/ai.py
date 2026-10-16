@@ -194,6 +194,15 @@ async def query_events(
         logger.warning(f"Vector store search failed: {e}")
         search_results = []
 
+    # Diagnostic: log scores for relevance analysis
+    if search_results:
+        logger.info(
+            "RAG query='%s' results=%d scores=%s",
+            request.query,
+            len(search_results),
+            [f"{emb.event_id}:{score:.4f}" for emb, score in search_results],
+        )
+
     # Step 2: Re-verify approval status and fetch full event data from DB
     events_context = []
     seen_ids = set()

@@ -58,9 +58,13 @@
   border-radius: var(--radius-md);
   font-size: var(--text-base);
   font-family: inherit;
-  color: var(--clr-text-primary);
-  background: var(--clr-bg);
+  color: #111827;
+  background: #ffffff;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.form-input::placeholder {
+  color: #6b7280;
 }
 
 .form-input:focus {

@@ -1130,8 +1130,8 @@ USER QUERY: {request.query}
 
 RULES:
 1. Answer using ONLY information from the provided event data. Do not invent events, dates, venues, or details.
-2. If no relevant event is found in the data, say "I couldn't find any relevant events matching your question."
-3. Be concise and helpful. Mention specific event titles, dates, venues, and organizers when relevant.
+2. If no event in the data is genuinely relevant to the user's query, say "I couldn't find any relevant events matching your question." Do not stretch relevance to marginally related events.
+3. When a relevant event is found, mention its specific title, date, venue, time, and organizer from the data.
 4. Distinguish verified event facts from general suggestions.
 5. Return a natural language answer.
 
@@ -1176,10 +1176,14 @@ ANSWER:"""
             line = f"- {e.get('title', 'Unknown')} ({e.get('category', 'N/A')})"
             if e.get('date'):
                 line += f" on {e['date'][:10]}"
+            if e.get('start_time'):
+                line += f" at {e['start_time']}"
             if e.get('venue'):
-                line += f" at {e['venue']}"
+                line += f" in {e['venue']}"
             if e.get('organizer_name'):
                 line += f" by {e['organizer_name']}"
+            if e.get('description'):
+                line += f". Description: {e['description']}"
             if e.get('tags'):
                 line += f" | Tags: {', '.join(e['tags'])}"
             lines.append(line)
@@ -1191,6 +1195,8 @@ ANSWER:"""
         answer_lower = answer.lower()
         
         for e in events:
+            # Use the actual similarity score from vector search, default 0.0
+            score = float(e.get('relevance_score', 0.0))
             title_lower = e.get('title', '').lower()
             if title_lower in answer_lower or any(term in title_lower for term in request.query.lower().split()):
                 try:
@@ -1205,10 +1211,10 @@ ANSWER:"""
                         end_time=e.get('end_time'),
                         organizer_name=e.get('organizer_name'),
                         tags=e.get('tags', []),
-                        relevance_score=0.8,
+                        relevance_score=score,
                     ))
-                except Exception as e:
-                    logger.warning(f"Failed to create RagEventResult: {e}")
+                except Exception as ex:
+                    logger.warning(f"Failed to create RagEventResult: {ex}")
         
         return relevant[:request.limit]
 

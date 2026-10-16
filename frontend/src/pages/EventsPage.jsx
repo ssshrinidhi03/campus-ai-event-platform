@@ -117,6 +117,15 @@ export default function EventsPage() {
           <div style={{ textAlign: 'center', padding: 'var(--space-16) 0' }}>
             <p className="text-secondary">Loading events...</p>
           </div>
+        ) : error ? (
+          <div className="empty-state">
+            <span className="empty-icon">⚠️</span>
+            <h3 className="font-display text-xl font-semibold">Unable to load events</h3>
+            <p className="text-secondary text-sm">{error}</p>
+            <button className="btn btn-ghost btn-sm" onClick={handleClearFilters}>
+              Try again
+            </button>
+          </div>
         ) : events.length === 0 ? (
           <div className="empty-state">
             <span className="empty-icon">🔍</span>
